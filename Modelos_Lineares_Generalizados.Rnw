@@ -1,0 +1,1130 @@
+\pdfminorversion=4
+\documentclass[10pt]{beamer}
+%% O comando acima foi necessario porque o PDF nao abria no acrobat do
+%% windows, dava o erro 131. Provavelmente devido as figuras em
+%% PDF. Agora ele gera um PDF versao 1.4, ao inves da versao 1.5
+
+\usetheme[compress]{PaloAlto}
+\usecolortheme{sidebartab} % crane
+
+\usepackage[brazilian]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage[scaled]{beramono} % truetype: Bistream Vera Sans Mono
+%\usepackage{inconsolata}
+\usepackage{xfrac}
+\usepackage{tikz}
+\usepackage{xcolor}
+\usepackage{multirow}
+\usepackage{multicol}
+%\usepackage{paralist}
+
+\setbeamertemplate{footline}[frame number] % mostra o numero dos slides
+\setbeamertemplate{navigation symbols}{} % retira a barra de navegacao
+
+\usepackage{xspace}
+\providecommand{\eg}{\textit{e.g.}\xspace}
+\providecommand{\ie}{\textit{i.e.}\xspace}
+\providecommand{\R}{\textsf{R}\xspace}
+\newcommand{\mb}[1]{\mathbf{#1}}
+\newcommand{\bs}[1]{\boldsymbol{#1}}
+\providecommand{\E}{\text{E}}
+\providecommand{\Var}{\text{Var}}
+\theoremstyle{definition}
+\newtheorem*{mydef}{Definição}
+\newtheorem*{mythm}{Teorema}
+
+\title{Modelos Lineares Generalizados (MLGs)}
+\author[]{Fernando de Pol Mayer}
+\institute[UFPR]{Laboratório de Estatística e Geoinformação (LEG) \\
+  Departamento de Estatística (DEST) \\
+  Universidade Federal do Paraná (UFPR)}
+\date{}
+\logo{\includegraphics[width=1.6cm]{img/ufpr-logo.png}}
+\titlegraphic{\includegraphics[width=1cm]{img/CC_by-nc-sa_88x31.png}\\
+  \tiny
+  \href{https://creativecommons.org/licenses/by-nc-sa/4.0/deed.pt_BR}{Este
+    conteúdo está disponível por meio da Licença Creative Commons 4.0
+    (Atribuição/NãoComercial/PartilhaIgual)}}
+
+\AtBeginSection[]
+{
+  \begin{frame}
+    \frametitle{Plano de aula}
+    \tableofcontents[currentsection]
+  \end{frame}
+}
+
+\AtBeginSubsection[]
+{
+  \begin{frame}
+    \frametitle{Plano de aula}
+    \tableofcontents[currentsection,currentsubsection]
+  \end{frame}
+}
+
+\begin{document}
+
+<<setup, include=FALSE, cache=FALSE>>=
+## Opcoes globais
+opts_chunk$set(size = "footnotesize",
+               prompt = FALSE,
+               comment = NA,
+               tidy = FALSE,
+               cache = TRUE,
+               fig.align = "center",
+               fig.width = 7,
+               fig.height = 6,
+               out.width=".8\\textwidth")
+## thm <- knit_theme$get("beamer3")
+## knit_theme$set(thm)
+options(width = 65, digits = 7, continue = "  ")
+## Use pdfcrop=TRUE nos chunks para reduzir a area do PDF
+knit_hooks$set(pdfcrop = hook_pdfcrop)
+@
+
+<<pacotes, echo=FALSE>>=
+require(xtable, quietly = TRUE)
+@
+
+\begin{frame}
+\maketitle
+%\titlepage
+\end{frame}
+
+\begin{frame}{Sumário}
+\tableofcontents
+\end{frame}
+
+\section[Introdução]{Introdução}
+
+\begin{frame}[fragile]{Base de dados}
+<<>>=
+dados <- read.table("dados/crabs.csv", header = T,
+                    sep = ";", dec = ",")
+str(dados)
+@
+\end{frame}
+
+\section{Testes de hipótese}
+
+\begin{frame}[fragile]{Testes de hipótese}{Teste-t
+    para uma amostra}
+<<out.width=".8\\textwidth">>=
+hist(dados$CL, main = "", ylab = "Frequência absoluta",
+     xlab = "Comprimento da carapaça (mm)", col = "grey")
+@
+\end{frame}
+
+\begin{frame}[fragile]{Testes de hipótese}{Teste-t
+    para uma amostra}
+Procedimentos gerais para um teste de hipótese
+\begin{enumerate}[(1)]
+\item Definir a hipótese nula ($H_0$) e a alternativa ($H_1$)
+\item Definir um nível de \textbf{significância} $\alpha$ (ex.: $\alpha
+  = 0,05$), que irá determinar o nível de \textbf{confiança}
+  $100(1-\alpha)\%$ do teste
+\item Determinar a \textbf{região de rejeição} com base no nível de
+  significância $\rightarrow$ $t_{crit}$
+\item Calcula a \textbf{estatística de teste}, sob a hipótese nula
+  \begin{equation*}
+    t_{calc} = \frac{\bar{x} - \mu_0}{s/\sqrt{n}}
+  \end{equation*}
+\item Rejeitar a hipótese nula se a estatística de teste calculada
+  estiver dentro da região de rejeição ($t_{calc} > t_{crit}$)
+  \begin{itemize}
+  \item Alternativamente, calcula-se o p-valor, que é a probabilidade de
+    se obter um valor de $t$ igual ou maior do que $t_{calc}$
+  \end{itemize}
+\end{enumerate}
+\end{frame}
+
+\begin{frame}[fragile]{Testes de hipótese}{Teste-t para uma
+    amostra}
+  \begin{itemize}
+  \item Testar a hipótese de que a média ($\mu$) de CL é igual a 30 mm
+    (com 95\% de confiança)
+  \item As hipóteses são
+    \begin{align*}
+      H_0: \mu = 30 \\
+      H_1: \mu \neq 30
+    \end{align*}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Testes de hipótese}{Teste-t para uma
+    amostra}
+  Fazendo manualmente
+<<>>=
+## Dados
+xbarra <- mean(dados$CL)
+mu0 <- 30
+dp <- sd(dados$CL)
+n <- nrow(dados)
+# t calculado
+(tcalc <- (xbarra - mu0)/(dp/sqrt(n)))
+# t critico (não é apresentado no resultado da função do R)
+qt(0.025, df = n - 1, lower.tail = FALSE)
+# valor p (multiplicado por 2 pois o teste é bilateral)
+pt(tcalc, df = n - 1, lower.tail = FALSE) * 2
+@
+\end{frame}
+
+\begin{frame}[fragile]{Testes de hipótese}{Teste-t para uma
+    amostra}
+<<>>=
+t.test(dados$CL, mu = 30, alternative = "two.sided",
+       conf.level = 0.95)
+@
+\end{frame}
+
+\begin{frame}[fragile]{Testes de hipótese}{Teste-t para uma
+    amostra}
+\textbf{Detalhe:} O teste pode ser armazenado em um objeto para futuras
+referências
+<<>>=
+teste <- t.test(dados$CL, mu = 30, alternative = "two.sided",
+                conf.level = 0.95)
+names(teste)
+teste$statistic
+teste$p.value
+@
+\end{frame}
+
+\begin{frame}[fragile]{Testes de hipótese}{Teste-t para duas amostras}
+<<out.width=".8\\textwidth">>=
+require(lattice) # pacote para gráficos avançados
+histogram(~CL | especie, data = dados)
+@
+\end{frame}
+
+\begin{frame}[fragile]{Testes de hipótese}{Teste-t para duas amostras}
+<<>>=
+with(dados, tapply(CL, especie, summary))
+@
+Existem evidências de que uma espécie é maior do que a outra?
+\end{frame}
+
+\begin{frame}[fragile]{Testes de hipótese}{Teste-t para duas amostras}
+  \begin{itemize}
+  \item Testar a hipótese de que a \textbf{diferença} entre a média de
+    CL da espécie azul ($\mu_A$) e a média de CL da espécie laranja
+    ($\mu_L$) é igual a 0 (zero) (com 95\% de confiança)
+  \item As hipóteses são
+    \begin{align*}
+      H_0: \mu_A - \mu_L = 0 \quad \Rightarrow \quad \mu_A = \mu_L \\
+      H_1: \mu_A - \mu_L \neq 0 \quad \Rightarrow \quad \mu_A \neq \mu_L
+    \end{align*}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Testes de hipótese}{Teste-t para duas amostras}
+<<>>=
+t.test(CL ~ especie, data = dados, mu = 0,
+       alternative = "two.sided", conf.level = 0.95)
+@
+Como você faria para calcular a diferença observada das médias de CL
+entre as duas espécies?
+\end{frame}
+
+\begin{frame}[fragile]{Exercícios}
+Com base no objeto \texttt{dados}:
+  \begin{enumerate}[(1)]
+  \item Faça um histograma de CW
+  \item Com base no histograma, construa uma hipótese para a média de CW
+    \begin{enumerate}[(a)]
+    \item Teste a igualdade dessa hipótese
+    \item Teste uma desigualdade dessa hipótese
+    \end{enumerate}
+    Em ambos os casos use um nível de confiança de 90\%, e escreva uma
+    frase com a sua conclusão.
+  \item Faça um histograma de CW para cada sexo
+  \item Com base nesses histogramas, construa uma hipótese para a
+    diferença média de CW entre os sexos
+    \begin{enumerate}[(a)]
+    \item Teste a igualdade dessa hipótese
+    \item Teste uma desigualdade dessa hipótese
+    \end{enumerate}
+    Em ambos os casos use um nível de confiança de 90\%, e escreva uma
+    frase com a sua conclusão.
+  \end{enumerate}
+\end{frame}
+
+\section{Regressão e correlação}
+
+\begin{frame}[fragile]{Regressão e correlação}
+Vamos analisar a relação que existe entre CL e CW
+<<out.width=".6\\textwidth">>=
+plot(CW ~ CL, data = dados)
+@
+\end{frame}
+
+\begin{frame}[fragile]{Regressão e correlação}
+  Um \textbf{modelo linear} entre duas variáveis $X$ e $Y$, é definido
+  matematicamente como uma equação com dois parâmetros desconhecidos,
+  \begin{equation*}
+    Y = \beta_0 + \beta_1 X
+  \end{equation*}
+  A \textbf{análise de regressão} é a técnica estatística que analisa as
+  relações existentes entre uma única variável \textbf{dependente}, e
+  uma ou mais variáveis \textbf{independentes} \\~\\
+  O objetivo é estudar as relações entre as variáveis, a partir de um
+  \textbf{modelo matemático}, permitindo \textbf{estimar} o valor de uma
+  variável a partir da outra
+  \begin{itemize}
+  \item Exemplo: sabendo a altura podemos determinar o peso de uma
+    pessoa, se conhecemos os parâmetros do modelo anterior
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Regressão linear}
+  O problema da análise de regressão consiste em definir a
+  \textbf{forma} de relação existente entre as variáveis. \\~\\
+  Por exemplo, podemos ter as seguintes relações
+  \begin{align*}
+    Y &= \beta_0 + \beta_1 X &\qquad \text{linear} \\
+    Y &= \beta_0 X^{\beta_1} &\qquad \text{potência} \\
+    Y &= \beta_0 e^{\beta_1 X} &\qquad \text{exponencial} \\
+    Y &= \beta_0 + \beta_1 X + \beta_2 X^2 &\qquad \text{polinomial} \\
+  \end{align*}
+  Em todos os casos, a variável \textbf{dependente} é $Y$, aquela que
+  será \textbf{predita} a partir da relação e da variável
+  \textbf{independente} $X$
+\end{frame}
+
+\subsection{Regressão}
+
+\begin{frame}[fragile]{Regressão linear}
+  Em uma \textbf{análise de regressão linear} consideraremos apenas as
+  variáveis que possuem uma \textbf{relação linear} entre si. \\~\\
+  Uma análise de regressão linear \textbf{múltipla} pode associar $k$
+  variáveis independentes ($X$) para ``explicar'' uma única variável
+  dependente ($Y$),
+  \begin{equation*}
+    Y = \beta_0 + \beta_1 X_1 + \beta_2 X_2 + \cdots + \beta_k X_k + e
+  \end{equation*}
+  Uma análise de regressão linear \textbf{simples} associa uma única
+  variável independente ($X$) com uma variável dependente ($Y$),
+  \begin{equation*}
+    Y = \beta_0 + \beta_1 X + e
+  \end{equation*}
+\end{frame}
+
+\begin{frame}[fragile]{Regressão linear}
+  Assim, dados $n$ pares de valores, $(X_1, Y_1), (X_2, Y_2), \ldots,
+  (X_n, Y_n)$, se for admitido que $Y$ é função linear de $X$, pode-se
+  estabelecer uma regressão linear simples, cujo modelo estatístico é
+  \begin{equation*}
+    Y_i = \beta_0 + \beta_1 X_i + e_i, \quad i = 1, 2, \ldots, n
+  \end{equation*}
+  onde:
+  \begin{itemize}
+  \item $Y$ é a variável \textbf{resposta} (ou \textbf{dependente})
+  \item $X$ é a variável \textbf{explicativa} (ou \textbf{independente})
+  \item $\beta_0$ é o \textbf{intercepto} da reta (valor de $Y$ quando
+    $X = 0$)
+    %% melhorar aqui: beta1 eh tg \alpha, onde \alpha eh o angulo
+    %% ver se eh possivel calcular por trigonometria
+  \item $\beta_1$ é o \textbf{coeficiente angular} da reta
+    (\textbf{efeito} de $X$ sobre $Y$)
+  \item $e_i \sim \text{N}(0, \sigma^2)$ é o \textbf{erro}, ou
+    \textbf{desvio}, ou \textbf{resíduo}
+  \end{itemize}
+  O problema agora consiste em \textbf{estimar} os parâmetros $\beta_0$
+  e $\beta_1$. \\~\\
+\end{frame}
+
+\begin{frame}[fragile]{Regressão linear}
+  \textbf{Interpretação dos parâmetros:} \\~\\
+  $\beta_0$ representa o ponto onde a reta corta o eixo $Y$ (na maioria
+  das vezes não possui interpretação prática) \\~\\
+  $\beta_1$ representa a variabilidade em $Y$ causada pelo aumento de
+  uma unidade em $X$. Além disso,
+  \begin{itemize}
+  \item $\beta_1 > 0$ mostra que com o aumento de $X$, também há um
+    aumento em $Y$
+  \item $\beta_1 = 0$ mostra que \textbf{não há efeito} de $X$ sobre $Y$
+  \item $\beta_1 < 0$ mostra que com a aumento de $X$, há uma diminuição
+    em $Y$
+  \end{itemize}
+  %% tirei pq o beta1 eh muito grande, fica dificil interpretar
+%% <<echo=FALSE, pdfcrop=TRUE, out.width=".7\\textwidth", fig.width=6,fig.height=5>>=
+%% plot(peso ~ alt, xlab = "Altura (cm)", ylab = "Peso (kg)", pch = 19)
+%% abline(m0)
+%% beta0 <- round(coef(m0)[1], 2)
+%% beta1 <- round(coef(m0)[2], 2)
+%% text(x = 1.75, y = 60,
+%%      labels = bquote(hat(Y) == .(beta0) + .(beta1) * X))
+%% @
+\end{frame}
+
+% \subsubsection[Estimação]{Estimação dos parâmetros}
+
+\begin{frame}[fragile]{Estimação dos parâmetros}
+  Como através de uma amostra obtemos uma estimativa da verdadeira
+  equação de regressão, denominamos
+  \begin{equation*}
+    \hat{Y}_i = \hat{\beta}_0 + \hat{\beta}_1 X_i
+  \end{equation*}
+  ou seja, $\hat{Y}_i$ é o valor \textbf{estimado} de $Y_i$, através
+  das \textbf{estimativas} de $\beta_0$ e $\beta_1$, que chamaremos de
+  $\hat{\beta}_0$ e $\hat{\beta}_1$. \\~\\
+  Para cada valor de $Y_i$, temos um valor $\hat{Y}_i$ estimado pela
+  equação de regressão,
+  \begin{equation*}
+    Y_i = \hat{Y}_i + e_i
+  \end{equation*}
+\end{frame}
+
+\begin{frame}[fragile]{Estimação dos parâmetros}
+  Portanto, o erro (ou desvio) de cada observação em relação ao modelo
+  adotado será
+  \begin{align*}
+    e_i &= Y_i - \hat{Y}_i \\
+    e_i &= Y_i - (\beta_0 + \beta_1 X_i)
+  \end{align*}
+  % lembre qe soh colca o chapeu quando iguala a zero depois
+  Devemos então adotar um modelo cujos parâmetros $\beta_0$ e
+  $\beta_1$, tornem esse diferença a menor possível. \\~\\
+  Isso equivale a \textbf{minimizar} a \textbf{soma de quadrados dos
+  resíduos} ($SQR$), ou do erro,
+  \begin{equation*}
+  SQR = \sum_{i=1}^{n} [Y_i - (\beta_0 + \beta_1 X_i)]^2
+\end{equation*}
+\end{frame}
+
+\begin{frame}[fragile]{Estimação dos parâmetros}
+  O método de minimizar a soma de quadrados dos resíduos é denominado de
+  \textbf{método dos mínimos quadrados}. \\~\\
+  Para se encontrar o ponto mínimo de uma função, temos que obter as
+  derivadas parciais em relação a cada parâmetro,
+  \begin{align*}
+    \frac{\partial SQR}{\partial \beta_0} &= 2 \sum_{i=1}^{n} [Y_i -
+    \beta_0 - \beta_1 X_i] (-1) \\
+    \frac{\partial SQR}{\partial \beta_1} &= 2 \sum_{i=1}^{n} [Y_i -
+    \beta_0 - \beta_1 X_i] (-X_i)
+  \end{align*}
+  e igualar os resultados a zero
+  \begin{equation*}
+    \hat{\beta}_0 = \frac{\partial SQR}{\partial \beta_0} = 0 \qquad
+    \text{e} \qquad
+    \hat{\beta}_1 = \frac{\partial SQR}{\partial \beta_1} = 0
+  \end{equation*}
+\end{frame}
+
+\begin{frame}[fragile]{Estimação dos parâmetros}
+  Dessa forma, chegamos às \textbf{estimativas de mínimos quadrados}
+  para os parâmetros $\beta_0$ e $\beta_1$:
+  \begin{align*}
+    \hat{\beta}_1 &= \frac{\sum_{i=1}^{n} X_iY_i - \frac{\sum_{i=1}^{n}
+        X_i \sum_{i=1}^{n} Y_i}{n}}{\sum_{i=1}^{n}X_i^2 -
+      \frac{(\sum_{i=1}^{n} X_i)^2}{n}} \\
+    & \\
+    \hat{\beta_0} &= \bar{Y} - \hat{\beta}_1 \bar{X}
+  \end{align*}
+  onde
+  \begin{align*}
+    \bar{Y} = \frac{1}{n} \sum_{i=1}^{n} Y_i \qquad \text{e} \qquad
+    \bar{X} = \frac{1}{n} \sum_{i=1}^{n} X_i
+  \end{align*}
+\end{frame}
+
+\begin{frame}[fragile]{Regressão}
+Ajustando um modelo linear no \R
+<<>>=
+mod <- lm(CW ~ CL, data = dados)
+mod
+@
+\end{frame}
+
+\begin{frame}[fragile]{Regressão}{Sumário}
+<<size="footnotesize">>=
+summary(mod)
+@
+\end{frame}
+
+\begin{frame}[fragile]{Regressão}{Tabela de Análise de Variância}
+<<>>=
+anova(mod)
+@
+\end{frame}
+
+\begin{frame}[fragile]{Regressão}{Ajuste gráfico}
+<<out.width=".49\\textwidth", fig.show="hold">>=
+plot(CW ~ CL, data = dados)
+abline(mod)
+plot(CW ~ CL, data = dados, xlim = c(0,50), ylim = c(0,55))
+abline(mod)
+@
+\end{frame}
+
+\begin{frame}[fragile]{Regressão}{Análise dos resíduos}
+<<out.width=".6\\textwidth", fig.show="hold", fig.width=7, fig.height=7>>=
+par(mfrow = c(2,2))
+plot(mod)
+par(mfrow = c(1,1))
+@
+\end{frame}
+
+\begin{frame}[fragile]{Regressão}
+Acessando os componentes do objeto \texttt{mod}:
+<<>>=
+names(mod)
+names(summary(mod))
+names(anova(mod))
+@
+\end{frame}
+
+\begin{frame}[fragile]{Regressão}
+  Veja que o \texttt{Residual standard error: 0.7827} é o estimador do
+  desvio-padrão residual $\hat{\sigma}^{2}_{e} = \frac{\text{SQRes}}{n-2}$,
+  ou seja,
+<<>>=
+sqrt(anova(mod)$Sum[2]/anova(mod)$Df[2])
+@
+e que \texttt{F-statistic: 1.592e+04} (15920) é o mesmo valor de
+<<>>=
+anova(mod)$F[1]
+@
+que testa a mesma hipótese da ANOVA. De fato, o valor de $t^2$ para
+$\beta_1$ no sumário do modelo é
+<<>>=
+summary(mod)$coef[2,3]^2
+@
+\end{frame}
+
+\subsection{Correlação}
+
+\begin{frame}[fragile]{Correlação}
+  Até agora o interesse estava em estudar qual a influência de uma
+  V.A. $X$ sobre uma V.A. $Y$, por meio de uma \textbf{relação linear}. \\~\\
+  Assim, em uma análise de regressão é indispensável identificar qual
+  variável é dependente. \\~\\
+  Na \textbf{análise de correlação} isto não é necessário, pois queremos
+  estudar o \textbf{grau de relacionamento} entre as variáveis $X$ e
+  $Y$, ou seja, uma medida de \textbf{covariabilidade} entre elas. \\~\\
+  A correlação é considerada como uma medida de \textbf{influência
+    mútua} entre variáveis, por isso não é necessário especificar quem
+  influencia e quem é influenciado.
+\end{frame}
+
+\begin{frame}[fragile]{Correlação}
+  O \textbf{grau de relação} entre duas variáveis pode ser medido
+  através do \textbf{coeficiente de correlação linear} ($r$), dado por
+  \begin{equation*}
+    r = \frac{\sum_{i=1}^{n} X_iY_i - \frac{\sum_{i=1}^{n}
+        X_i \sum_{i=1}^{n} Y_i}{n}}{\sqrt{\sum_{i=1}^{n}X_i^2 -
+      \frac{(\sum_{i=1}^{n} X_i)^2}{n}} \cdot \sqrt{\sum_{i=1}^{n}Y_i^2 -
+      \frac{(\sum_{i=1}^{n} Y_i)^2}{n}}}
+  \end{equation*}
+  onde
+  \begin{equation*}
+    -1 \leq r \leq 1
+  \end{equation*}
+  Portanto,
+  \begin{itemize}
+  \item $r=1$ correlação \textbf{positiva} perfeita entre as variáveis
+  \item $r=0$ \textbf{não há} correlação entre as variáveis
+  \item $r= -1$ correlação \textbf{negativa} perfeita entre as variáveis
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Correlação}
+<<out.width=".33\\textwidth",fig.show="hold", echo=FALSE,fig.width=4,fig.height=4>>=
+plot(1:10, 1:10, type = "l", xlab = "", ylab = "",  main = "r = 1")
+plot(1:10, rep(5,10), type = "l", xlab = "", ylab = "", main = "r = 0")
+plot(1:10, -1:-10, type = "l", xlab = "", ylab = "", main = "r = -1")
+@
+\end{frame}
+
+%% Exemplos de que correlacao nao implica em causação
+
+\begin{frame}[fragile]{Correlação}
+  O \textbf{coeficiente de determinação} ($r^2$) é o quadrado do
+  coeficiente de correlação, por consequência
+  \begin{equation*}
+    0 \leq r^2 \leq 1
+  \end{equation*}
+  O $r^2$ nos dá a \textbf{porcentagem de variação em $Y$ que pode ser explicada
+  pela variável independente $X$}. \\~\\
+  Quanto mais próximo de 1, maior é a explicação da variável $Y$ pela
+  variável $X$.
+\end{frame}
+
+\begin{frame}[fragile]{Correlação}
+<<reg, echo=FALSE,pdfcrop=TRUE, fig.width=8, fig.height=6>>=
+x <- (1:100)/10
+n <- length(x)
+set.seed(1000)
+par(mfrow=c(2,2))
+
+e <- rnorm(n, 0, 2)
+y <- 20 + x + e
+cor <- round(cor(x,y), 2)
+r <- round(cor^2, 2)
+lis <- list(bquote(r == .(cor)),
+            bquote(r^2 == .(r)))
+plot(y ~ x, xlim = c(0, 10), ylim = c(0, 45))
+mtext(do.call(expression, lis), side = 3, line = 0:1)
+mm <- lm(y ~ x)
+abline(mm, lwd = 2)
+
+e <- rnorm(n, 0, 4)
+y <- 20 + x + e
+cor <- round(cor(x,y), 2)
+r <- round(cor^2, 2)
+lis <- list(bquote(r == .(cor)),
+            bquote(r^2 == .(r)))
+plot(y ~ x, xlim = c(0, 10), ylim = c(0, 45))
+mtext(do.call(expression, lis), side = 3, line = 0:1)
+mm <- lm(y ~ x)
+abline(mm, lwd = 2)
+
+e <- rnorm(n, 0, 6)
+y <- 20 + x + e
+cor <- round(cor(x,y), 2)
+r <- round(cor^2, 2)
+lis <- list(bquote(r == .(cor)),
+            bquote(r^2 == .(r)))
+plot(y ~ x, xlim = c(0, 10), ylim = c(0, 45))
+mtext(do.call(expression, lis), side = 3, line = 0:1)
+mm <- lm(y ~ x)
+abline(mm, lwd = 2)
+
+e <- rnorm(n, 0, 8)
+y <- 20 + x + e
+cor <- round(cor(x,y), 2)
+r <- round(cor^2, 2)
+lis <- list(bquote(r == .(cor)),
+            bquote(r^2 == .(r)))
+plot(y ~ x, xlim = c(0, 10), ylim = c(0, 45))
+mtext(do.call(expression, lis), side = 3, line = 0:1)
+mm <- lm(y ~ x)
+abline(mm, lwd = 2)
+
+par(mfrow = c(1,1))
+@
+\end{frame}
+
+\begin{frame}[fragile]{Exercícios}
+Com as colunas BD e CL do objeto \texttt{dados}
+\begin{enumerate}[(1)]
+\item Faça um gráfico da relação entre estas variáveis
+\item Faça um teste de correlação
+\item Ajuste um modelo linear
+  \begin{enumerate}[(a)]
+  \item Veja o sumário
+  \item Ajuste a linha do modelo no gráfico
+  \item Verifique os resíduos
+  \end{enumerate}
+\end{enumerate}
+Qual sua conclusão?
+\small
+\begin{itemize}
+\item Existe correlação significativa? De que tipo (positiva, negativa)?
+\item O modelo linear descreve bem a relação entre estas duas variáveis
+  (verifique com o valor de \verb+Pr(>|t|)+ e do $R^2$)
+\item O modelos foi bem ajustado aos dados (observe os resíduos)
+\end{itemize}
+\end{frame}
+
+
+\section[ANOVA]{Análise de Variância}
+
+%\begin{frame}[fragile]{Análise de Variância}{Base de dados}
+%<<>>=
+%## dados <- read.table("crabs.csv", header = T, sep = ";",
+%##                     dec = ",")
+%## str(dados)
+%@
+%\end{frame}
+
+\begin{frame}[fragile]{Análise de Variância}
+Definição: $y_{ij}$ representa a observação $j$ do grupo $i$;
+$\bar{y}_{i}$ é a média do grupo $i$; $\bar{y}$ é a média geral de todas
+as observações. As observações podem ser decompostas em
+\begin{equation*}
+  y_{ij} = \quad \bar{y} \quad + \quad (\bar{y}_{i} - \bar{y}) \quad + \quad
+  (y_{ij} - \bar{y}_{i})
+\end{equation*}
+que corresponde ao modelo
+\begin{equation*}
+  y_{ij} = \quad \theta \quad + \quad \mu_i \quad + \quad \epsilon_{ij},
+  \qquad \epsilon_{ij} \sim N(0, \sigma^2)
+\end{equation*}
+A hipótese a ser testada de que todos os grupos são iguais (\textit{i.e}
+médias iguais) implica que todos os $\mu_{i}$ são iguais:
+\begin{align*}
+  &H_0: \mu_1 = \mu_2 = \cdots = \mu_n \\
+  &H_1: \textsf{pelo menos um}\ \mu_i\ \textsf{é diferente dos demais}
+\end{align*}
+\end{frame}
+
+\begin{frame}[fragile]{Análise de Variância}
+Voltando ao exemplo da diferença de CL entre as duas espécies:\\
+$\bar{y}_A = \Sexpr{round(mean(dados$CL[dados$especie=="azul"]),2)}$ e
+$\bar{y}_L = \Sexpr{round(mean(dados$CL[dados$especie=="laranja"]),2)}$
+<<>>=
+with(dados, tapply(CL, especie, summary))
+@
+Média geral $\bar{y} = \Sexpr{round(mean(dados$CL),2)}$
+<<>>=
+mean(dados$CL)
+@
+\end{frame}
+
+\begin{frame}[fragile]{Análise de Variância}
+<<out.width=".6\\textwidth">>=
+boxplot(CL ~ especie, data = dados)
+abline(h = mean(dados$CL), lty = 2, col = "red", lwd = 2)
+@
+\end{frame}
+
+\begin{frame}[fragile]{Análise de Variância}
+Geometricamente
+<<out.width=".7\\textwidth", echo=FALSE>>=
+plot(CL ~ as.numeric(especie), data = dados, axes = FALSE,
+     xlim = c(0,3), xlab = "Espécie", ylab = "CL")
+axis(1, at = seq(0,3,1), labels = c("", "Azul", "Laranja", ""), tick = FALSE)
+axis(2); box()
+points(1, mean(dados$CL[dados$especie == "azul"]), pch = 15,
+       cex = 2, col = "blue")
+points(2, mean(dados$CL[dados$especie == "laranja"]), pch = 15,
+       cex = 2, col = "orange")
+abline(h = mean(dados$CL), lty = 2, col = "red", lwd = 2)
+@
+\end{frame}
+
+\begin{frame}[fragile]{Análise de Variância}
+Podemos ajustar um modelo linear entre CL e espécie
+<<size="footnotesize">>=
+mod <- lm(CL ~ especie, data = dados)
+summary(mod)
+@
+\end{frame}
+
+\begin{frame}[fragile]{Análise de Variância}
+Ajustando o modelo
+<<out.width=".7\\textwidth", echo=FALSE>>=
+plot(CL ~ as.numeric(especie), data = dados, axes = FALSE,
+     xlim = c(0,3), xlab = "Espécie", ylab = "CL")
+axis(1, at = seq(0,3,1), labels = c("", "Azul", "Laranja", ""), tick = FALSE)
+axis(2); box()
+points(1, mean(dados$CL[dados$especie == "azul"]), pch = 15,
+       cex = 2, col = "blue")
+points(2, mean(dados$CL[dados$especie == "laranja"]), pch = 15,
+       cex = 2, col = "orange")
+abline(h = mean(dados$CL), lty = 2, col = "red", lwd = 2)
+segments(1, mean(dados$CL[dados$especie=="azul"]),
+         2, mean(dados$CL[dados$especie=="laranja"]))
+# abline(mod)
+@
+\end{frame}
+
+\begin{frame}[fragile]{Análise de Variância}
+Você lembra do teste-t feito anteriormente?
+<<size="footnotesize">>=
+teste <- t.test(CL ~ especie, data = dados, mu = 0,
+                alternative = "two.sided", conf.level = 0.95)
+teste
+@
+\end{frame}
+
+\begin{frame}[fragile]{Análise de Variância}
+Notou a relação?
+<<size="footnotesize", echo=-c(1,2,7)>>=
+sci <- getOption("scipen")
+options(scipen = -1)
+summary(mod)$coefficients
+teste$p.value
+teste$estimate
+unname(diff(teste$estimate))
+options(scipen = sci)
+@
+\end{frame}
+
+\begin{frame}[fragile]{Análise de Variância}
+A ANOVA vai testar apenas a hipótese inicial
+\begin{align*}
+  &H_0: \mu_A = \mu_L \\
+  &H_1: \mu_A \neq \mu_L
+\end{align*}
+<<>>=
+anova(mod)
+@
+Aqui a única conclusão é de que os $\mu_i$ não são iguais (mas você
+não sabe quanto e nem quais!)
+\end{frame}
+
+\begin{frame}[fragile]{Análise de Variância}
+Se olharmos apenas o resultado da ANOVA, podemos prosseguir com a
+análise fazendo um teste \textit{a posteriori} para verificarmos quais
+são os grupos que diferem entre si. Um deles é o teste de Tukey
+<<>>=
+mod.anova <- aov(CL ~ especie, data = dados)
+TukeyHSD(mod.anova)
+@
+\end{frame}
+
+\begin{frame}[fragile]{Análise de Variância}
+Porque então fazer uma ANOVA??? \\~\\
+\begin{itemize}
+\item Quando formos comparar a média de mais de 2 grupos
+\item Não é possível fazer um teste-t para mais de 2 grupos
+\item Por exemplo, com 3 grupos (A, B, C) teríamos que fazer 3
+  comparações (A:B, A:C, B:C)
+  \begin{itemize}
+  \item Com um nível de confiança de 95\% ($\alpha = 0.05$)
+    para cada teste, os 3 testes teriam um nível de confiança
+    $(1-\alpha)^3$
+  \item Portanto $(1-0.05)^3 = (0.95)^3 = 0.85$
+  \item Isso implica que quanto mais comparações forem feitas, menor
+    será seu nível de confiança no resultado dos testes.
+  \end{itemize}
+\end{itemize}
+\end{frame}
+
+\section[MLGs]{Modelos Lineares Generalizados}
+
+\begin{frame}[fragile]{Modelos Lineares Generalizados}
+  Todos os modelos anteriores podem ser classificados como um caso
+  particular de uma \textbf{família de modelos} mais geral, denominada
+  \textbf{Modelos Lineares Generalizados} (MLGs):
+  \begin{center}
+    Teste-t $\subset$ ANOVA $\subset$ ANCOVA* $\subset$ ML $\subset$
+    ML-MULT* $\subset$ MLG
+  \end{center}
+  \begin{itemize}
+  \item Teste-t: compara uma ou duas médias
+  \item ANOVA: compara 2 ou mais médias (fator)
+  \item ANCOVA: compara 2 ou mais médias (fator) + variáveis numéricas
+  \item ML: regressão de $Y$ (numérico) em função de um único $X$
+    (numérico ou fator)
+  \item ML-MULT: regressão de $Y$ (numérico) em função de mais de um $X$
+    (numéricos ou fatores)
+  \item MLG: Similar ao ML-MULT, mas extende o modelo para que $Y$ possa
+    ser um fator ou ter uma distribuição diferente da normal.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Modelos Lineares Generalizados}
+  A seleção de modelos é uma parte importante de toda pesquisa, envolve
+  a procura de um modelo o mais simples possível, que descreva
+  bem os dados observados. \\~\\
+  Na maior parte das situações pode-se pensar na variável resposta ($Y$)
+  consistindo de duas partes distintas: \\~\\
+  \begin{enumerate}
+  \item Um \textbf{componente sistemático}, que é estabelecido durante o
+    planejamento do experimento, resultando em modelos de regressão,
+    ANOVA ou ANCOVA.
+  \item Um \textbf{componente aleatório}, que é estabelecido assim
+  que são definidas as medidas a serem feitas, que podem ser contínuas
+  ou discretas, exigindo o ajuste de distribuições diferentes.
+\end{enumerate}
+\end{frame}
+
+\begin{frame}[fragile]{Modelos Lineares Generalizados}
+  Matematicamente, e assumindo o modelo clássico de regressão, temos:
+  \begin{equation*}
+    \mb{Y} = \bs{\mu} + \mb{e}
+  \end{equation*}
+  onde:
+  \begin{itemize}
+  \item $Y$ o vetor de dimensão $n \times 1$ da variável
+    \textbf{resposta}
+  \item $\bs{\mu} = \E(\mb{Y}) = \mb{X}\bs{\beta}$ o \textbf{componente
+    sistemático}
+  \item $\mb{X}$ é a \textbf{matriz do modelo}, de dimensão $n \times p$
+  \item $\bs{\beta} = (\beta_1, \ldots, \beta_p)^{T}$ o vetor de
+    parâmetros
+  \item $\mb{e} = (e_1, \ldots, e_n)^{T}$ o \textbf{componente
+      aleatório} com $e_i \sim \text{N}(0, \sigma^2)$
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Modelos Lineares Generalizados}
+  Em muitos casos, porém, essa estrutura aditiva entre o componente
+  sistemático e o componente aleatório não é satisfeita. \\~\\
+  Além disso:
+  \begin{itemize}
+  \item Não há razão para se restringir à estrutura simples dada por
+    $\bs{\mu} = \E(\mb{Y}) = \mb{X}\bs{\beta}$ para o componente
+    sistemático
+  \item Nem sempre a distribuição normal é adequada para o componente
+    aleatório
+  \item Nem sempre a suposição de homogeneidade de variâncias é atendida
+    (e em muitos casos não deve ser mesmo)
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Modelos Lineares Generalizados}
+  Nelder e Wedderburn (1972) propuseram uma teoria unificadora da
+  modelagem estatística, a que deram o nome de \textbf{Modelos Lineares
+    Generalizados (MLG)}, como uma extensão dos modelos lineares
+  clássicos. \\~\\
+  Na realidade, eles mostraram que uma série de técnicas comumente
+  estudadas separadamente podem ser reunidas sob o nome de Modelos
+  Lineares Generalizados. \\~\\
+  Os desenvolvimentos que levaram a esta visão geral da modelagem
+  estatística, remontam a mais de um século. \\~\\
+  Eles mostraram, então, que a maioria dos problemas estatísticos, que
+  surgem nas áreas de oceanografia, agricultura, ecologia, economia,
+  etc. podem ser formulados, de uma \textbf{maneira unificada}, como
+ \textbf{modelos de regressão}.
+\end{frame}
+
+\begin{frame}[fragile]{Modelos Lineares Generalizados}
+  Os MLGs possuem uma estrutura similar à dos modelos lineares clássicos,
+  e podem ser usados quando se tem uma única variável aleatória $Y$, e
+  associado a ela um conjunto de variáveis explicativas $X_1, \ldots,
+  X_p$ \\~\\
+  Para uma amostra de $n$ observações $(y_i, \mb{x}_i)$ em que $\mb{x}_i =
+  (x_{i1}, x_{i2}, \ldots, x_{ip})^{T}$ é o vetor coluna de variáveis
+  explicativas, o modelo linear generalizado envolve os três
+  componentes:
+\end{frame}
+
+\begin{frame}[fragile]{Modelos Lineares Generalizados}
+\begin{enumerate}
+  \item[1)] \textbf{Componente aleatório}: variável resposta do modelo,
+    representado por um conjunto de variáveis aleatórias independentes
+    $Y_1, \ldots, Y_n$ provenientes de uma \textbf{mesma distribuição}
+    que faz parte da \textbf{família exponencial} com médias $\mu_1,
+    \ldots, \mu_n$, ou seja,
+    \begin{equation*}
+      \E(Y_i) = \mu_i, \qquad i = 1, \ldots, n
+    \end{equation*}
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}[fragile]{Modelos Lineares Generalizados}
+  \begin{enumerate}
+  \item[2)] \textbf{Componente sistemático}: as variáveis explicativas,
+    que entram na forma de uma estrutura linear.
+    \begin{align*}
+      \eta_i &= \beta_0 + \beta_1 x_{i1} + \beta_2 x_{i2} + \cdots +
+               \beta_p x_{ip} \\
+             &= \sum_{j=1}^{p} \beta_j x_{ij}
+    \end{align*}
+    Ou, em forma matricial
+    \begin{equation*}
+      \bs{\eta} = \mb{x}_{i}^{T} \bs{\beta} = \mb{X}\bs{\beta}
+    \end{equation*}
+    sendo $X = (x_1, \ldots, x_n)^{T}$ a matriz do modelo, $\bs{\beta} =
+    (\beta_1, \ldots, \beta_p)^{T}$ o vetor de parâmetros, e $\bs{\eta} =
+    (\eta_1, \ldots, \eta_n)^{T}$ o preditor linear.
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}[fragile]{Modelos Lineares Generalizados}
+  \begin{enumerate}
+  \item[3)] \textbf{Função de ligação}: função que liga os componentes
+    aleatório e sistemático. O modelo liga $\mu_i$ a $\eta_i$ através de
+    \begin{equation*}
+      \eta_i = g(\mu_i)
+    \end{equation*}
+    onde $g(\cdot)$ é uma função monótona e diferenciável. Portanto,
+    $g(\cdot)$ liga $\E(Y_i)$ com as variáveis explicativas através de
+    \begin{equation*}
+      g(\mu_i) = \sum_{j=1}^{p} \beta_j x_{ij} \qquad i = 1, \ldots, n
+    \end{equation*}
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}[fragile]{Família exponencial}
+  A \textbf{família exponencial} é uma forma geral de definição de
+  algumas distribuições de probabilidade. A função (densidade) de
+  probabilidade desta família é:
+  \begin{equation*}
+    f(y_i; \theta_i) = a(\theta_i) b(y_i) \exp{[y_i Q(\theta_i)]}
+  \end{equation*}
+  Diversas distribuições importantes como: normal, binomial e Poisson
+  fazem parte desta família (\ie são casos particulares). \\~\\
+  O termo $Q(\theta)$ é chamado de \textbf{parâmetro natural}. \\~\\
+  Se a função de ligação for $Q(\theta)$, ou seja,
+  \begin{equation*}
+    g(\mu_i) = Q(\theta) = \sum_{j=1}^{p} \beta_j x_{ij}
+  \end{equation*}
+  ela é chamada de \textbf{função de ligação canônica}.
+\end{frame}
+
+\begin{frame}[fragile]{Família exponencial}
+  \textbf{Exemplo}: Binomial/Bernoulli \\~\\
+  A distribuição Bernoulli é um caso particular de uma distribuição
+  binomial com $n=1$, e especifica as probabilidades $P(Y=1) = \pi$ e
+  $P(Y=0) = 1-\pi$, e $\E(Y) = \pi$. Na famíla exponencial:
+  \begin{align*}
+    f(y;\pi) &= \pi^y (1-\pi)^{1-y} \\
+             &= (1-\pi) \exp{\left[ y \log\frac{\pi}{1-\pi} \right]} \\
+             &= a(\theta)b(y) \exp{[y Q(\theta)]}
+  \end{align*}
+  Portanto, com $\theta = \mu$, $a(\pi) = 1-\pi$, $b(y) = 1$, $Q(\pi) =
+  \log[\frac{\pi}{1-\pi}]$, a \textbf{função de ligação canônica} é
+  chamada \textit{logit}, e
+  \begin{equation*}
+    \text{logit}(\pi) = \log\left( \frac{\pi}{1-\pi}  \right) =
+    \sum_{j=1}^{p} \beta_j x_{ij}
+  \end{equation*}
+  é chamada de \textit{regressão logística}.
+\end{frame}
+
+\begin{frame}[fragile]{Família exponencial}
+  \textbf{Exemplo}: Poisson \\~\\
+  A distribuição de Poisson é comumente utilizada para modelar dados de
+  contagem. Seja $Y$ uma contagem, e $\mu = \E(Y)$, a função densidade
+  de probabilidade na família exponencial fica:
+  \begin{align*}
+    f(y;\mu) &= \frac{e^{-\mu} \mu^y}{y!} \\
+             &= \exp{(-\mu)} \left( \frac{1}{y!} \right) \exp{(y \log
+               \mu)} \\
+             &= a(\theta)b(y) \exp{[y Q(\theta)]}
+  \end{align*}
+  Portanto, com $\theta = \mu$, $a(\mu) = \exp{(-\mu)}$, $b(y) = 1/y!$,
+  $Q(\mu) = \log \mu$, a \textbf{função de ligação canônica} é o $\log$,
+  e
+  \begin{equation*}
+    g(\mu) = \log \mu = \sum_{j=1}^{p} \beta_j x_{ij}
+  \end{equation*}
+  que é chamado de \textit{modelo loglinear de Poisson}.
+\end{frame}
+
+\begin{frame}[fragile]{Modelos Lineares Generalizados}
+  A classe de MLGs inclui também modelos para variáveis respostas
+  contínuas. \\~\\
+  A distribuição normal faz parte da família exponencial que inclui um
+  \textbf{parâmetro de dispersão}, e seu parâmetro natural é a média.
+  Portanto,
+  \begin{equation*}
+    g(\mu) = \mu
+  \end{equation*}
+  e um modelo de regressão linear simples é um MLG com função de ligação
+  \textbf{identidade}.
+\end{frame}
+
+\begin{frame}[fragile]{Funções de ligação e tipos de modelo}
+  \begin{table}[!h]
+    \centering
+    \begin{tabular}{p{1.5cm}ccp{2cm}p{1.5cm}}
+      \hline
+      Componente aleatório & \multicolumn{2}{c}{Link}
+      & Componente sistemático & Modelo \\
+      \hline
+      Normal & Identidade & $\mu$ & Contínuo & Regressão linear \\
+      Normal & Identidade & $\mu$ & Categórico & ANOVA \\
+      Normal & Identidade & $\mu$ & Ambos & ANCOVA \\
+      Binomial & Logit & $\log_{e}\left( \frac{\mu}{1-\mu} \right)$
+                               & Ambos & Regressão logística \\
+      Poisson & Log & $\log_{e} \mu$ & Ambos & Loglinear \\
+      Multinomial & Logit gen. & & Ambos & Multinomial \\
+      \hline
+    \end{tabular}
+  \end{table}
+\end{frame}
+
+\begin{frame}[fragile]{Funções de ligação no R}
+Distribuições da família exponencial e funções de ligação (P = link
+canônico)
+\begin{center}
+\begin{table}[h!]
+\renewcommand{\baselinestretch}{1}
+\small\footnotesize\scriptsize
+\begin{tabular}{lcccccc}
+\hline
+Link & \texttt{binomial} & \texttt{poisson} & \texttt{negative} &
+\texttt{Gamma} & \texttt{gaussian} & \texttt{inverse}\\
+    &       &    & \texttt{binomial} &  &  & \texttt{gaussian} \\
+\hline
+\texttt{logit} & P & & & & & \\
+\texttt{probit} & $\bullet$ & & & & &  \\
+\texttt{cloglog} & $\bullet$ & & & & &  \\
+\texttt{identity} &  & $\bullet$ & $\bullet$ & $\bullet$ & P & $\bullet$  \\
+\texttt{inverse} &  & & & P & $\bullet$ & $\bullet$  \\
+\texttt{log} & $\bullet$  & P & P & $\bullet$ & $\bullet$ & $\bullet$  \\
+\verb|1/mu^2| & & & & & & P  \\
+\texttt{sqrt} & & $\bullet$ & $\bullet$ & & &  \\
+\hline
+\end{tabular}
+\end{table}
+\end{center}
+\end{frame}
+
+\begin{frame}[fragile]{Modelos Lineares Generalizados}
+  Um método tradicional de análise de dados consistia em transformar
+  $Y$, para que a variável resposta ficasse com distribuição normal e
+  variância constante. \\~\\
+  Em MLGs, a escolha de uma função de ligação \textbf{não} é relacionada
+  com a escolha do componente aleatório. \\~\\
+  Se uma função de ligação é capaz de linearizar a relação entre a média
+  e os preditores, então \textbf{não é necessário} que ela também
+  estabilize a variância ou produza normalidade. \\~\\
+  Isso está relacionado com o processo de ajuste do modelo, que maximiza
+  a verossimilhança para a distribuição de $Y$, que não é mais restrita
+  à normal.
+\end{frame}
+
+\begin{frame}[fragile]{Modelos Lineares Generalizados}
+  MLGs fornecem uma \textbf{teoria unificada de modelagem}, que
+  compreende os modelos mais importantes para variáveis contínuas e
+  discretas. \\~\\
+  A estimativa dos parâmetros em MLGs é realizada através de um
+  algoritmo que usa uma versão ponderada dos mínimos quadrados,
+  \textit{Iteratively Reweighted Least Squares} (IRLS). \\~\\
+  A razão de restringir os MLGs à família exponencial para $Y$ é porque
+  este mesmo algoritmo se aplica à todos os membros dessa família, para
+  qualquer escolha de função de ligação.
+\end{frame}
+
+\begin{frame}[fragile]{Modelos Lineares Generalizados}
+Para ajustar um MLG usamos a função \texttt{glm()}
+<<size="footnotesize">>=
+mod.glm <- glm(CL ~ especie, data = dados,
+               family = gaussian(link = "identity"))
+summary(mod.glm)
+@
+\end{frame}
+
+\begin{frame}[fragile]{Modelos Lineares Generalizados}
+  Deviance
+\end{frame}
+
+\begin{frame}[fragile]{Modelos Lineares Generalizados}
+  Resíduos e diagnósticos
+\end{frame}
+
+\begin{frame}[fragile]{Modelos Lineares Generalizados}
+  Quando existe mais de uma variável resposta ($Y$)? \\~\\
+  \begin{itemize}
+  \item Métodos multivariados (restritos à normalidade)
+  \item McGLM (\textit{Multivariate covariance Generalized Linear
+      Models}) (Bonat e Jorgensen, 2016)
+  \end{itemize}
+
+\end{frame}
+
+\begin{frame}[fragile]{Exercícios}
+Com o objeto \texttt{dados}
+\begin{enumerate}[(1)]
+\item Faça um boxplot de CW por sexo
+\item Faça um teste-t para testar se existe diferença entre as médias de
+  CW para machos e fêmeas
+\item Ajuste um modelo linear para testar essa mesma hipótese
+\item Faça uma ANOVA e o teste de Tukey
+\end{enumerate}
+Qual sua conclusão?
+\end{frame}
+
+\section{Referências}
+
+
+\begin{frame}{Referências}
+  \begin{itemize}
+  \item Agresti, A. \textbf{Categorical data analysis}. John Wiley \&
+    Sons. 2002.
+  \item Fox, J; Weisberg, S. \textbf{An R companion to applied
+      regression}. Sage. 2011.
+  \end{itemize}
+\end{frame}
+
+\end{document}
