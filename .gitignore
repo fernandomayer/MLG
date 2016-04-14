@@ -1,0 +1,6 @@
+auto/
+cache/
+*_cache/
+*_files/
+.Rhistory
+Rplots.pdf

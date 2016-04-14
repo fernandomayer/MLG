@@ -1,0 +1,451 @@
+---
+title: "Modelos Lineares Generalizados"
+author: "Fernando de Pol Mayer (LEG/UFPR)"
+date: "Abril, 2016"
+output:
+  html_document:
+    theme: flatly
+    highlight: default
+    code_folding: show
+    number_sections: true
+    toc: true
+    toc_depth: 4
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+---
+
+```{r setup, include=FALSE, purl=FALSE, eval=TRUE}
+opts_chunk$set(
+    ## knitr options
+    cache = TRUE,
+    tidy = FALSE,
+    ## comment = NA,
+    fig.width = 10,
+    fig.height = 8,
+    fig.align = "center",
+    # dpi = 60, ## aumentar o dpi para exibir maior.
+    dev = "png"
+    # fig.path = "figures/",
+    )
+```
+
+# Introdução
+
+Análise de dados de nidificação de caranguejos-ferradura.
+
+# Pacotes necessários
+
+```{r, message=FALSE}
+library(MASS)
+library(hnp)
+```
+
+# Dados
+
+Importação e conferência dos dados.
+
+```{r}
+dados <- read.table("dados/crabs.txt", header = TRUE)
+str(dados)
+```
+
+# Análise descritiva e exploratória
+
+Gráfico geral.
+
+```{r}
+plot(dados)
+```
+
+Histograma e boxplot do número de satélites.
+
+```{r, fig.show='hold'}
+par(mfrow = c(1, 2))
+hist(dados$satell, xlab = "Número de satélites",
+     ylab = "Frequência", main = "")
+boxplot(dados$satell)
+par(mfrow = c(1, 1))
+```
+
+Como o interesse é analisar a relação entre o número de satélites e o
+comprimento das fêmeas, vemos essa relação abaixo.
+
+```{r}
+plot(satell ~ width, data = dados,
+     xlab = "Comprimento (cm)", ylab = "Número de satélites")
+```
+
+Como não há uma relação linear muito clara, podemos agregar os valores
+em uma **tabela de frequência** e analisar a relação a pertir dela.
+
+```{r}
+## Quebra de classes (reproduz as classes do livro)
+quebra <- c(20.25, seq(23.25, 29.25, 1), 34.25)
+## Identifica classes
+classes <- cut(dados$width, breaks = quebra)
+## Agrega os valores em uma tabela de frequência
+fn <- function(x) cbind(length(x), sum(x), mean(x), var(x))
+tab <- aggregate(satell ~ classes, data = dados, FUN = fn)
+tab <- data.frame("classes" = tab[,1], tab[,2])
+names(tab)[2:5] <- c("n", "nsatell", "med", "vari")
+tab
+```
+
+O gráfico agora consiste do comprimento médio das fêmeas em cada
+intervalo de comprimento.
+
+```{r}
+plot(tab$med, xlab = "Classe de comprimento",
+     ylab = "Número médio de satélites")
+```
+
+Agora a relação linear entre as duas variáveis fica bem mais clara.
+Vamos analisar também a relação entre a média e a variância do número de
+satélites em cada classe de comprimento.
+
+```{r}
+plot(vari ~ med, data = tab, xlim = c(0, 17), ylim = c(0, 17),
+     xlab = "Média", ylab = "Variância")
+abline(a = 0, b = 1)
+```
+
+Podemos observar que a variância é sempre maior do que a média.
+
+# Modelos
+
+## Normal
+
+Mesmo sabendo que não é adequado ajustar um modelo normal para
+contagens, vamos "forçar a barra" e analisar o resultado.
+
+```{r}
+m.norm <- glm(satell ~ width, data = dados,
+              family = gaussian(link = "identity"))
+```
+
+Tabela de **Análise de Deviance**
+
+```{r}
+anova(m.norm, test = "Chisq")
+```
+
+Coeficientes ajustados pelo modelo
+
+```{r}
+summary(m.norm)
+```
+
+Portanto o modelo é
+
+```{r, echo=FALSE}
+al.norm <- unname(round(coef(m.norm)[1], 3))
+be.norm <- unname(round(coef(m.norm)[2], 3))
+```
+
+$$
+\hat\mu = \hat\alpha + \hat\beta x = `r al.norm` + `r be.norm` x
+$$
+
+```{r, echo=FALSE}
+mw <- mean(dados$width)
+```
+
+Podemos agora **predizer** o valor esperado do número de satélites para
+qualquer comprimento. Por exemplo, se considerarmos o comprimento médio
+geral $x = `r round(mw, 1)`$, então o número esperado de satélites seria
+
+$$
+\hat\mu = \alpha + \beta x = `r al.norm` + `r be.norm`(`r round(mw,1)`) =
+`r round(al.norm + be.norm*mw, 3)`
+$$
+
+Como $\hat\beta = `r be.norm`$, então o aumento de uma unidade no
+comprimento deve aumentar o número de satélites em exatamente $`r be.norm`$, ou seja,
+
+$$
+\hat\mu = \alpha + \beta x = `r al.norm` + `r be.norm`(27.3) =
+`r round(al.norm + be.norm*27.3, 2)`
+$$
+
+que é exatamente igual a $2.91 + `r be.norm` = `r round(2.91+be.norm,
+2)`$.
+
+Análise dos resíduos
+
+```{r, fig.show='hold'}
+par(mfrow = c(2, 2))
+plot(m.norm)
+par(mfrow = c(1, 1))
+```
+
+Gráfico de envelope simulado
+
+```{r}
+hnp(m.norm)
+```
+
+```{r}
+pred.norm <- predict(m.norm)
+tab.norm <- aggregate(pred.norm ~ classes, FUN = mean)
+plot(tab$med, xlab = "Classe de comprimento",
+     ylab = "Número médio de satélites", pch = 19)
+lines(tab.norm$pred.norm, col = 2)
+```
+
+## Poisson
+
+### Link log
+
+A escolha mais natural para modelar contagens é o modelo Poisson.
+
+A distribuição de Poisson possui média positiva $\mu$. Embora um MLG
+possa modelar uma média positiva usando o link identidade, é mais comum
+modelar o log da média.
+
+Assim como o preditor linear $\alpha + \beta x$, o log da média pode
+assumir qualquer número real. O log da média é o **parâmetro natural**
+da distribuição Poisson na família exponencial, portanto o link log é o
+link **canônico** para um MLG Poisson.
+
+Um MLG loglinear de Poisson assume uma distribuição de Poisson para $Y$
+(**componente aleatório**) e usa a **função de ligação** (link) log.
+Portanto, um modelo loglinear de Poisson com uma variável explicativa
+$X$ (**componente sistemático**) é
+
+$$
+\log \mu = \alpha + \beta x
+$$
+
+Para este modelo, a média satisfaz então a seguinte relação
+
+$$
+\hat\mu = \exp(\alpha + \beta x) = e^{\alpha}(e^{\beta})^{x}
+$$
+
+Portanto, o aumento de 1 unidade em $x$, tem um **efeito
+multiplicativo** em $\mu$: a média em $x + 1$ é igual a média de $x$
+**multiplicada** por $e^{\beta}$.
+
+Inicialmente, vamos considerar então a função de ligação canônica (log)
+para ajustar o modelo Poisson.
+
+```{r pois}
+m.pois <- glm(satell ~ width, data = dados,
+              family = poisson(link = "log"))
+```
+
+Tabela de **Análise de Deviance**
+
+```{r}
+anova(m.pois, test = "Chisq")
+```
+
+Coeficientes ajustados pelo modelo
+
+```{r}
+summary(m.pois)
+```
+
+Portanto o modelo é
+
+```{r, echo=FALSE}
+al.pois <- unname(round(coef(m.pois)[1], 3))
+be.pois <- unname(round(coef(m.pois)[2], 3))
+```
+
+$$
+\log \hat\mu = \hat\alpha + \hat\beta x = `r al.pois` + `r be.pois` x
+$$
+
+O efeito $\hat\beta = `r be.pois`$ é positivo, e indica a relação
+positiva que tinhamos observado. Assim, podemos *predizer* o número
+médio de satélites $\hat\mu$ para qualquer classe de comprimento. Por
+exemplo, o valor "ajustado" para a média de comprimento,
+$x = `r round(mw, 1)`$ é
+
+$$
+\hat\mu = \exp(\alpha + \beta x) = \exp{[`r al.pois` + `r be.pois`(`r round(mw,1)`)]} =
+`r round(exp(al.pois + be.pois*mw), 3)`
+$$
+
+Para este modelo,
+$\exp{(\hat\beta)} = \exp{(`r be.pois`) = `r round(exp(be.pois), 2)`}$
+é o **efeito multiplicativo** em $\hat\mu$ para o aumento de 1 unidade
+em $x$.
+
+Por exemplo, o valor ajustado em $x = 27.3 = 26.3 + 1$ é
+
+$$
+\hat\mu = \exp(\alpha + \beta x) = \exp{[`r al.pois` + `r be.pois`(27.3)]} =
+`r round(exp(al.pois + be.pois*27.3), 2)`
+$$
+
+que é exatamente igual a $2.74 \times 1.18  = `r round(1.18*2.74, 2)`$.
+Ou seja, o aumento de 1 unidade em comprimento, resulta em um aumento de
+18% no número de satélites.
+
+Análise dos resíduos
+
+```{r, fig.show='hold'}
+par(mfrow = c(2, 2))
+plot(m.pois)
+par(mfrow = c(1, 1))
+```
+
+Gráfico de envelope simulado
+
+```{r}
+hnp(m.pois)
+```
+
+```{r}
+pred.pois <- predict(m.pois, type = "response")
+tab.pois <- aggregate(pred.pois ~ classes, FUN = mean)
+plot(tab$med, xlab = "Classe de comprimento",
+     ylab = "Número médio de satélites", pch = 19)
+lines(tab.norm$pred.norm, col = 2)
+lines(tab.pois$pred.pois, col = 3)
+```
+
+Como podemos observar, os resíduos estão longe de serem apropriados, e o
+gráfico de envelope simulado mostra que há um problema grave no ajuste
+do modelo.
+
+### Link identidade
+
+Como vimos que a relação entre as duas variáveis é aproximadamente
+linear, isto sugere que uma função de ligação identidade pode ser
+utilizada.
+
+Nesse caso o modelo é simplesmente
+
+$$
+\log \mu = \alpha + \beta x
+$$
+
+como no caso do modelo normal. A grande diferença é que vamos considerar
+que a distribuição dos erros agora é Poisson.
+
+```{r pois2}
+m.pois2 <- glm(satell ~ width, data = dados,
+               family = poisson(link = "identity"),
+               start = coef(m.pois))
+```
+
+Devido à problemas de convergência com o link identidade, é necessário
+especificar valores iniciais para o algoritmo de estimação. Nesse caso,
+os valores iniciais são os próprios coeficientes obtidos no modelo
+anterior com o link log.
+
+Tabela de **Análise de Deviance**
+
+```{r}
+anova(m.pois2, test = "Chisq")
+```
+
+Coeficientes ajustados pelo modelo
+
+```{r}
+summary(m.pois2)
+```
+
+Portanto o modelo é
+
+```{r, echo=FALSE}
+al.pois2 <- unname(round(coef(m.pois2)[1], 3))
+be.pois2 <- unname(round(coef(m.pois2)[2], 3))
+```
+
+$$
+\hat\mu = \hat\alpha + \hat\beta x = `r al.pois2` + `r be.pois2` x
+$$
+
+Como anteriormente, se fizermos a predição do número de satélites para o
+comprimento médio usando esse modelo, temos
+
+$$
+\hat\mu = \alpha + \beta x = `r al.pois2` + `r be.pois2`(`r round(mw,1)`) =
+`r round(al.pois2 + be.pois2*mw, 3)`
+$$
+
+Como a função de ligação é a identidade, então a relação é similar
+aquela de um modelo normal. Portanto, o aumento de 1 unidade de
+comprimento deve acarretar o aumento de $`r be.pois2`$ unidades no
+número médio de satélites. De fato,
+
+$$
+\hat\mu = \alpha + \beta x = `r al.pois2` + `r be.pois2`(27.3) =
+`r round(al.pois2 + be.pois2*27.3, 2)`
+$$
+
+que é o mesmo que $2.913 + `r be.norm` = `r round(2.913+be.pois2, 2)`$.
+
+Análise dos resíduos
+
+```{r, fig.show='hold'}
+par(mfrow = c(2, 2))
+plot(m.pois2)
+par(mfrow = c(1, 1))
+```
+
+Gráfico de envelope simulado
+
+```{r, error=TRUE}
+hnp(m.pois2)
+```
+
+```{r}
+pred.pois2 <- predict(m.pois2, type = "response")
+tab.pois2 <- aggregate(pred.pois2 ~ classes, FUN = mean)
+plot(tab$med, xlab = "Classe de comprimento",
+     ylab = "Número médio de satélites", pch = 19)
+lines(tab.norm$pred.norm, col = 2)
+lines(tab.pois$pred.pois, col = 3)
+lines(tab.pois2$pred.pois, col = 4)
+```
+
+## Binomial negativo
+
+$$
+\log \mu = \alpha + \beta x
+$$
+
+Para este modelo, a média satisfaz então a seguinte relação
+
+$$
+\hat\mu = \exp(\alpha + \beta x) = e^{\alpha}(e^{\beta})^{x}
+$$
+
+Portanto, o aumento de 1 unidade em $x$, tem um **efeito
+multiplicativo** em $\mu$: a média em $x + 1$ é igual a média de $x$
+**multiplicada** por $e^{\beta}$.
+
+Inicialmente, vamos considerar então a função de ligação canônica (log)
+para ajustar o modelo Poisson.
+
+```{r}
+m.bn <- glm.nb(satell ~ width, data = dados,
+               link = "identity", start = coef(m.pois))
+```
+
+Tabela de **Análise de Deviance**
+
+```{r}
+anova(m.bn, test = "Chisq")
+```
+
+Coeficientes ajustados pelo modelo
+
+```{r}
+summary(m.bn)
+```
+
+## Comparação
+
+A comparação dos modelos pode ser feita por meio de um teste de razão de
+verossimilhança (TRV)
+
+```{r}
+anova(m.norm, m.pois, m.pois2, m.bn, test = "F")
+```
