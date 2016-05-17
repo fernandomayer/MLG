@@ -391,9 +391,16 @@ par(mfrow = c(1, 1))
 
 Gráfico de envelope simulado
 
-```{r, error=TRUE}
-hnp(m.pois2)
+```{r}
+dfun <- function(obj) resid(obj, type = "deviance")
+sfun <- function(n, obj) as.numeric(simulate(obj)[,1])
+ffun <- function(y.) glm(y. ~ width, data = dados,
+                         family = poisson(link = "identity"),
+                         start = coef(m.pois)) # aqui voce poe seu start
+hnp(m.pois2, newclass=T, diagfun=dfun, simfun=sfun, fitfun=ffun)
 ```
+
+Valores preditos.
 
 ```{r}
 pred.pois2 <- predict(m.pois2, type = "response")
@@ -439,6 +446,17 @@ Coeficientes ajustados pelo modelo
 
 ```{r}
 summary(m.bn)
+```
+
+Gráfico de envelope simulado
+
+```{r, error=TRUE}
+dfun <- function(obj) resid(obj, type = "deviance")
+sfun <- function(n, obj) as.numeric(simulate(obj)[,1])
+ffun <- function(y.) glm.nb(y. ~ width, data = dados,
+                         link = "identity",
+                         start = coef(m.pois)) # aqui voce poe seu start
+hnp(m.bn, newclass=T, diagfun=dfun, simfun=sfun, fitfun=ffun)
 ```
 
 ## Comparação
